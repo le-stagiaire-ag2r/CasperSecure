@@ -5,7 +5,6 @@
 CasperSecure is an automated security auditing tool that detects vulnerabilities in Casper Network smart contracts written in Rust. It uses static analysis, pattern recognition, and control flow analysis to identify common security issues before deployment.
 
 ![Version](https://img.shields.io/badge/Version-4.0.0-blue)
-![Status](https://img.shields.io/badge/Status-Production Ready-brightgreen)
 ![Detectors](https://img.shields.io/badge/Detectors-20-orange)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
