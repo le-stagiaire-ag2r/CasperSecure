@@ -1,169 +1,169 @@
-# 🛡️ Guide CasperSecure - Qu'est-ce que c'est ?
+# 🛡️ CasperSecure Guide - What is it?
 
-**CasperSecure expliqué simplement, avec des exemples concrets**
-
----
-
-## 🤔 C'est quoi CasperSecure ?
-
-Imagine que tu écris un programme pour gérer de l'argent sur la blockchain Casper (un smart contract). **CasperSecure, c'est comme un inspecteur de sécurité** qui lit ton code et te dit : "Attention, il y a un problème ici !"
-
-**En gros :**
-- Tu écris ton smart contract en Rust
-- CasperSecure analyse ton code automatiquement
-- Il te montre tous les problèmes de sécurité qu'il trouve
-- Il te donne des conseils pour les corriger
-
-**C'est comme un antivirus, mais pour ton code !** 🔍
+**CasperSecure explained simply, with concrete examples**
 
 ---
 
-## 🎯 Pourquoi c'est important ?
+## 🤔 What is CasperSecure?
 
-Les smart contracts gèrent de l'argent. **Si ton code a un bug de sécurité, quelqu'un peut voler tout l'argent !**
+Imagine you're writing a program to manage money on the Casper blockchain (a smart contract). **CasperSecure is like a security inspector** that reads your code and tells you: "Warning, there's a problem here!"
 
-**Exemples réels de hacks :**
-- The DAO (Ethereum) : **$60 millions volés** à cause d'une faille de reentrancy
-- Poly Network : **$600 millions volés** à cause de bugs
-- Harmony Bridge : **$100 millions volés**
+**In short:**
+- You write your smart contract in Rust
+- CasperSecure analyzes your code automatically
+- It shows you all the security problems it finds
+- It gives you advice on how to fix them
 
-**Avec CasperSecure, tu peux éviter ces erreurs AVANT de déployer ton contrat !** ✅
+**It's like an antivirus, but for your code!** 🔍
 
 ---
 
-## 📖 Exemple Concret - Comment ça marche ?
+## 🎯 Why is it important?
 
-### Étape 1 : Tu as écrit ce code
+Smart contracts manage money. **If your code has a security bug, someone can steal all the money!**
+
+**Real examples of hacks:**
+- The DAO (Ethereum): **$60 million stolen** due to reentrancy flaw
+- Poly Network: **$600 million stolen** due to bugs
+- Harmony Bridge: **$100 million stolen**
+
+**With CasperSecure, you can avoid these errors BEFORE deploying your contract!** ✅
+
+---
+
+## 📖 Concrete Example - How does it work?
+
+### Step 1: You wrote this code
 
 ```rust
-// Ton smart contract qui gère des tokens
+// Your smart contract that manages tokens
 pub fn transfer(recipient: String, amount: u64) {
-    // 1. On appelle un autre contrat
+    // 1. We call another contract
     call_external_contract(recipient, amount);
 
-    // 2. On met à jour le solde APRÈS l'appel
+    // 2. We update the balance AFTER the call
     let balance = get_balance();
-    set_balance(balance - amount);  // ⚠️ DANGER !
+    set_balance(balance - amount);  // ⚠️ DANGER!
 }
 ```
 
-### Étape 2 : Tu lances CasperSecure
+### Step 2: You run CasperSecure
 
 ```bash
-casper-secure analyze mon_contrat.rs
+casper-secure analyze my_contract.rs
 ```
 
-### Étape 3 : CasperSecure te dit ce qui ne va pas
+### Step 3: CasperSecure tells you what's wrong
 
 ```
-🔴 REENTRANCY ATTACK TROUVÉ !
+🔴 REENTRANCY ATTACK FOUND!
 
-Problème : Tu appelles un contrat externe AVANT de mettre à jour le solde.
-Danger  : L'attaquant peut rappeler ta fonction avant que tu mettes à jour !
-Résultat: Il peut vider tous les tokens ! 💸
+Problem: You're calling an external contract BEFORE updating the balance.
+Danger : An attacker can call your function again before you update!
+Result : They can drain all the tokens! 💸
 
-Conseil : Mets à jour le solde AVANT d'appeler le contrat externe.
+Advice : Update the balance BEFORE calling the external contract.
 ```
 
-### Étape 4 : Tu corriges ton code
+### Step 4: You fix your code
 
 ```rust
 pub fn transfer(recipient: String, amount: u64) {
-    // 1. On met à jour le solde EN PREMIER ✅
+    // 1. We update the balance FIRST ✅
     let balance = get_balance();
     set_balance(balance - amount);
 
-    // 2. ENSUITE on appelle le contrat externe ✅
+    // 2. THEN we call the external contract ✅
     call_external_contract(recipient, amount);
 }
 ```
 
-**Maintenant c'est sécurisé !** 🎉
+**Now it's secure!** 🎉
 
 ---
 
-## 🔍 Les 20 Types de Problèmes Détectés
+## 🔍 The 20 Types of Problems Detected
 
-CasperSecure trouve **20 types différents de bugs de sécurité**. Voici les plus importants expliqués simplement :
+CasperSecure finds **20 different types of security bugs**. Here are the most important ones explained simply:
 
-### 1. 🔴 Reentrancy Attack (Très Dangereux)
+### 1. 🔴 Reentrancy Attack (Very Dangerous)
 
-**C'est quoi ?**
-Quand un attaquant peut appeler ta fonction plusieurs fois avant qu'elle termine.
+**What is it?**
+When an attacker can call your function multiple times before it finishes.
 
-**Exemple concret :**
+**Concrete example:**
 ```rust
-// ❌ CODE DANGEREUX
+// ❌ DANGEROUS CODE
 pub fn withdraw() {
     let balance = get_balance();
-    transfer_money(user);        // L'attaquant rappelle withdraw() ici !
-    set_balance(balance - 100);  // Trop tard ! Il a déjà retiré plusieurs fois !
+    transfer_money(user);        // Attacker calls withdraw() again here!
+    set_balance(balance - 100);  // Too late! They already withdrew multiple times!
 }
 ```
 
-**Comment éviter :**
+**How to avoid:**
 ```rust
-// ✅ CODE SÉCURISÉ
+// ✅ SECURE CODE
 pub fn withdraw() {
     let balance = get_balance();
-    set_balance(balance - 100);  // On met à jour EN PREMIER
-    transfer_money(user);        // Maintenant c'est safe
+    set_balance(balance - 100);  // Update FIRST
+    transfer_money(user);        // Now it's safe
 }
 ```
 
 ---
 
-### 2. 🟡 Integer Overflow (Dangereux)
+### 2. 🟡 Integer Overflow (Dangerous)
 
-**C'est quoi ?**
-Quand un nombre devient trop grand et "boucle" à zéro.
+**What is it?**
+When a number becomes too large and "wraps around" to zero.
 
-**Exemple concret :**
+**Concrete example:**
 ```rust
-// ❌ CODE DANGEREUX
+// ❌ DANGEROUS CODE
 pub fn add_tokens(amount: u64) {
     let balance = get_balance();  // balance = 255
-    set_balance(balance + amount); // Si amount = 2, ça fait 257... mais overflow → 1 !
+    set_balance(balance + amount); // If amount = 2, it makes 257... but overflow → 1!
 }
 ```
 
-**Comment éviter :**
+**How to avoid:**
 ```rust
-// ✅ CODE SÉCURISÉ
+// ✅ SECURE CODE
 pub fn add_tokens(amount: u64) {
     let balance = get_balance();
 
-    // Vérifier qu'on ne dépasse pas
-    let new_balance = balance.checked_add(amount).expect("Overflow !");
+    // Check we don't exceed
+    let new_balance = balance.checked_add(amount).expect("Overflow!");
     set_balance(new_balance);
 }
 ```
 
 ---
 
-### 3. 🔴 Missing Access Control (Très Dangereux)
+### 3. 🔴 Missing Access Control (Very Dangerous)
 
-**C'est quoi ?**
-N'importe qui peut appeler des fonctions sensibles.
+**What is it?**
+Anyone can call sensitive functions.
 
-**Exemple concret :**
+**Concrete example:**
 ```rust
-// ❌ CODE DANGEREUX - N'importe qui peut devenir owner !
+// ❌ DANGEROUS CODE - Anyone can become owner!
 pub fn set_owner(new_owner: String) {
     set_key("owner", new_owner);
 }
 ```
 
-**Comment éviter :**
+**How to avoid:**
 ```rust
-// ✅ CODE SÉCURISÉ
+// ✅ SECURE CODE
 pub fn set_owner(new_owner: String) {
     let caller = get_caller();
     let owner = get_key("owner");
 
-    // VÉRIFIER que c'est bien l'owner actuel qui appelle
+    // CHECK that it's the current owner calling
     if caller != owner {
-        panic!("Seul l'owner peut changer l'owner !");
+        panic!("Only the owner can change the owner!");
     }
 
     set_key("owner", new_owner);
@@ -172,54 +172,54 @@ pub fn set_owner(new_owner: String) {
 
 ---
 
-### 4. 🟡 Unchecked External Calls (Dangereux)
+### 4. 🟡 Unchecked External Calls (Dangerous)
 
-**C'est quoi ?**
-Tu appelles un autre contrat mais tu ne vérifies pas si ça a marché.
+**What is it?**
+You call another contract but don't check if it succeeded.
 
-**Exemple concret :**
+**Concrete example:**
 ```rust
-// ❌ CODE DANGEREUX
+// ❌ DANGEROUS CODE
 pub fn pay_user(user: String) {
-    call_contract(user, "receive_payment");  // Et si ça échoue ?
-    // Tu continues comme si tout allait bien...
+    call_contract(user, "receive_payment");  // What if it fails?
+    // You continue as if everything was fine...
 }
 ```
 
-**Comment éviter :**
+**How to avoid:**
 ```rust
-// ✅ CODE SÉCURISÉ
+// ✅ SECURE CODE
 pub fn pay_user(user: String) {
     let result = call_contract(user, "receive_payment");
 
     if result.is_err() {
-        panic!("Le paiement a échoué !");
+        panic!("Payment failed!");
     }
 }
 ```
 
 ---
 
-### 5. 🔵 Missing Events (Bonne Pratique)
+### 5. 🔵 Missing Events (Best Practice)
 
-**C'est quoi ?**
-Tu modifies des choses importantes mais tu n'enregistres rien.
+**What is it?**
+You modify important things but don't record anything.
 
-**Exemple concret :**
+**Concrete example:**
 ```rust
-// ❌ PAS OPTIMAL - On ne sait pas qui a transféré quoi
+// ❌ NOT OPTIMAL - We don't know who transferred what
 pub fn transfer(to: String, amount: u64) {
     set_balance(to, amount);
 }
 ```
 
-**Comment améliorer :**
+**How to improve:**
 ```rust
-// ✅ MIEUX
+// ✅ BETTER
 pub fn transfer(to: String, amount: u64) {
     set_balance(to, amount);
 
-    // Enregistrer l'événement pour l'historique
+    // Record the event for history
     emit_event("Transfer", {
         "from": caller,
         "to": to,
@@ -230,56 +230,56 @@ pub fn transfer(to: String, amount: u64) {
 
 ---
 
-## 💯 Le Système de Score
+## 💯 The Scoring System
 
-CasperSecure te donne **une note sur 100** pour ton contrat :
+CasperSecure gives you **a score out of 100** for your contract:
 
-| Score | Grade | Signification |
-|-------|-------|---------------|
-| 95-100 | **A+** 🌟 | Parfait ! Presque aucun problème |
-| 90-94 | **A** ✅ | Très bon, quelques détails mineurs |
-| 80-89 | **B** 👍 | Bon, mais il faut corriger certains trucs |
-| 70-79 | **C** ⚠️ | Moyen, plusieurs problèmes à régler |
-| 60-69 | **D** ❌ | Dangereux, beaucoup de problèmes |
-| 0-59 | **F** 💀 | Très dangereux ! NE PAS DÉPLOYER ! |
+| Score | Grade | Meaning |
+|-------|-------|---------|
+| 95-100 | **A+** 🌟 | Perfect! Almost no problems |
+| 90-94 | **A** ✅ | Very good, minor details |
+| 80-89 | **B** 👍 | Good, but need to fix some things |
+| 70-79 | **C** ⚠️ | Average, several problems to fix |
+| 60-69 | **D** ❌ | Dangerous, many problems |
+| 0-59 | **F** 💀 | Very dangerous! DO NOT DEPLOY! |
 
-**Comment c'est calculé ?**
-- Chaque bug enlève des points selon sa gravité :
-  - Bug Critique : **-50 points** 💀
-  - Bug High : **-15 points** 🔴
-  - Bug Medium : **-5 points** 🟡
-  - Bug Low : **-2 points** 🔵
-  - Info : **-1 point** ℹ️
+**How is it calculated?**
+- Each bug removes points based on severity:
+  - Critical Bug: **-50 points** 💀
+  - High Bug: **-15 points** 🔴
+  - Medium Bug: **-5 points** 🟡
+  - Low Bug: **-2 points** 🔵
+  - Info: **-1 point** ℹ️
 
 ---
 
-## 🚀 Guide d'Utilisation Rapide
+## 🚀 Quick Usage Guide
 
 ### Installation
 
 ```bash
-# Cloner le projet
+# Clone the project
 git clone https://github.com/le-stagiaire-ag2r/CasperSecure.git
 cd CasperSecure
 
-# Compiler
+# Compile
 cargo build --release
 ```
 
-### Analyser ton contrat
+### Analyze your contract
 
 ```bash
-# Analyse basique
-./target/release/casper-secure analyze mon_contrat.rs
+# Basic analysis
+./target/release/casper-secure analyze my_contract.rs
 
-# Voir seulement les problèmes graves (HIGH)
-./target/release/casper-secure analyze mon_contrat.rs --severity high
+# See only severe problems (HIGH)
+./target/release/casper-secure analyze my_contract.rs --severity high
 
-# Exporter en JSON (pour l'intégrer dans tes outils)
-./target/release/casper-secure analyze mon_contrat.rs --format json
+# Export to JSON (to integrate in your tools)
+./target/release/casper-secure analyze my_contract.rs --format json
 ```
 
-### Voir tous les détecteurs
+### See all detectors
 
 ```bash
 ./target/release/casper-secure detectors
@@ -287,9 +287,9 @@ cargo build --release
 
 ---
 
-## 📊 Exemple de Rapport Complet
+## 📊 Example of Complete Report
 
-Quand tu analyses un contrat, voici ce que tu obtiens :
+When you analyze a contract, here's what you get:
 
 ```
 ════════════════════════════════════════════════════════════
@@ -298,130 +298,130 @@ SECURITY ANALYSIS REPORT
 
 Summary:
   Total vulnerabilities: 12
-  Security Score: 25/100    ← Ta note
-  Security Grade: F         ← Ton grade
+  Security Score: 25/100    ← Your score
+  Security Grade: F         ← Your grade
 
-  High:     3    ← 3 problèmes graves
-  Medium:   5    ← 5 problèmes moyens
-  Low:      4    ← 4 petits problèmes
+  High:     3    ← 3 severe problems
+  Medium:   5    ← 5 medium problems
+  Low:      4    ← 4 small problems
 
 Detected Vulnerabilities:
 ────────────────────────────────────────────────────────────
 
 1. Reentrancy [HIGH] 🔴
    Function: withdraw
-   Description: Tu appelles un contrat externe avant de mettre à jour l'état.
-                Un attaquant peut voler de l'argent !
-   Recommendation: Mets à jour l'état AVANT d'appeler le contrat.
+   Description: You're calling an external contract before updating state.
+                An attacker can steal money!
+   Recommendation: Update state BEFORE calling the contract.
 
 2. Missing Access Control [HIGH] 🔴
    Function: set_admin
-   Description: N'importe qui peut devenir admin de ton contrat !
-   Recommendation: Ajoute une vérification que seul l'admin actuel peut changer l'admin.
+   Description: Anyone can become admin of your contract!
+   Recommendation: Add a check that only the current admin can change the admin.
 
-[... et ainsi de suite pour les 12 problèmes ...]
+[... and so on for the 12 problems ...]
 ```
 
 ---
 
-## 🎯 Cas d'Usage Réels
+## 🎯 Real Use Cases
 
-### 1. Avant de déployer ton contrat
+### 1. Before deploying your contract
 
 ```bash
-# Tu as fini ton contrat
-casper-secure analyze mon_nouveau_token.rs
+# You finished your contract
+casper-secure analyze my_new_token.rs
 
-# Résultat : Score 95/100 - Grade A+
-# → OK, tu peux déployer en toute sécurité ! ✅
+# Result: Score 95/100 - Grade A+
+# → OK, you can deploy safely! ✅
 ```
 
-### 2. Audit de sécurité
+### 2. Security audit
 
 ```bash
-# Tu veux auditer un contrat existant
-casper-secure analyze contrat_suspect.rs --severity high
+# You want to audit an existing contract
+casper-secure analyze suspicious_contract.rs --severity high
 
-# Résultat : 5 bugs HIGH détectés
-# → Il faut corriger avant d'utiliser ce contrat ! ⚠️
+# Result: 5 HIGH bugs detected
+# → Need to fix before using this contract! ⚠️
 ```
 
-### 3. Intégration CI/CD
+### 3. CI/CD Integration
 
 ```bash
-# Dans ton pipeline automatique
+# In your automated pipeline
 casper-secure analyze src/contract.rs --format json > report.json
 
-# Si le score < 80, le pipeline échoue
-# → Oblige à corriger avant de merger le code ! 🚀
+# If score < 80, pipeline fails
+# → Forces fixes before merging code! 🚀
 ```
 
 ---
 
-## 🏆 Pourquoi CasperSecure est Unique ?
+## 🏆 Why CasperSecure is Unique?
 
-**Comparaison avec d'autres outils :**
+**Comparison with other tools:**
 
-| Feature | CasperSecure | Autres outils |
-|---------|--------------|---------------|
-| **Détecteurs** | 20 | 5-10 |
-| **Score de sécurité** | ✅ Oui | ❌ Non |
-| **Casper spécifique** | ✅ Oui | ❌ Non |
-| **Gratuit & Open Source** | ✅ Oui | 💰 Payant |
-| **Facile à utiliser** | ✅ CLI simple | ⚠️ Complexe |
-
----
-
-## 💡 Conseils de Sécurité Généraux
-
-1. **Toujours vérifier les appels externes**
-2. **Mettre à jour l'état AVANT les appels externes**
-3. **Utiliser les fonctions checked_ pour l'arithmétique**
-4. **Ajouter des access control partout où c'est important**
-5. **Émettre des événements pour toutes les actions importantes**
-6. **Tester ton contrat avec CasperSecure AVANT de déployer**
+| Feature | CasperSecure | Other tools |
+|---------|--------------|-------------|
+| **Detectors** | 20 | 5-10 |
+| **Security score** | ✅ Yes | ❌ No |
+| **Casper specific** | ✅ Yes | ❌ No |
+| **Free & Open Source** | ✅ Yes | 💰 Paid |
+| **Easy to use** | ✅ Simple CLI | ⚠️ Complex |
 
 ---
 
-## 🤝 Questions Fréquentes (FAQ)
+## 💡 General Security Tips
 
-**Q : CasperSecure peut corriger les bugs automatiquement ?**
-R : Pas encore (V4.0), mais c'est prévu pour V5.0 !
-
-**Q : Est-ce que ça remplace un audit humain ?**
-R : Non ! CasperSecure détecte les bugs automatiques, mais un audit humain est toujours recommandé pour les gros projets.
-
-**Q : C'est compatible avec tous les contrats Casper ?**
-R : Oui ! Tant que c'est écrit en Rust pour Casper Network.
-
-**Q : C'est vraiment gratuit ?**
-R : Oui, 100% gratuit et open source (licence MIT) !
-
-**Q : Ça marche pour d'autres blockchains ?**
-R : Pour l'instant seulement Casper, mais on peut l'adapter !
+1. **Always verify external calls**
+2. **Update state BEFORE external calls**
+3. **Use checked_ functions for arithmetic**
+4. **Add access control wherever it's important**
+5. **Emit events for all important actions**
+6. **Test your contract with CasperSecure BEFORE deploying**
 
 ---
 
-## 📚 Aller Plus Loin
+## 🤝 Frequently Asked Questions (FAQ)
 
-- **GitHub** : https://github.com/le-stagiaire-ag2r/CasperSecure
-- **Documentation** : Voir README.md
-- **Liste des 20 détecteurs** : `casper-secure detectors`
-- **Exemples de contrats** : Dossier `examples/`
+**Q: Can CasperSecure fix bugs automatically?**
+A: Not yet (V4.0), but it's planned for V5.0!
+
+**Q: Does it replace a human audit?**
+A: No! CasperSecure detects automatic bugs, but a human audit is always recommended for large projects.
+
+**Q: Is it compatible with all Casper contracts?**
+A: Yes! As long as it's written in Rust for Casper Network.
+
+**Q: Is it really free?**
+A: Yes, 100% free and open source (MIT license)!
+
+**Q: Does it work for other blockchains?**
+A: Currently only Casper, but it can be adapted!
+
+---
+
+## 📚 Go Further
+
+- **GitHub**: https://github.com/le-stagiaire-ag2r/CasperSecure
+- **Documentation**: See README.md
+- **List of 20 detectors**: `casper-secure detectors`
+- **Contract examples**: `examples/` directory
 
 ---
 
 ## 🎓 Conclusion
 
-**CasperSecure, c'est ton copilote de sécurité pour Casper !** 🛡️
+**CasperSecure is your security copilot for Casper!** 🛡️
 
-- ✅ Détecte 20 types de bugs automatiquement
-- ✅ Te donne une note de sécurité
-- ✅ Te conseille comment corriger
-- ✅ Gratuit et facile à utiliser
+- ✅ Detects 20 types of bugs automatically
+- ✅ Gives you a security score
+- ✅ Advises you how to fix
+- ✅ Free and easy to use
 
-**N'oublie jamais :**
-> "Un smart contract déployé ne peut pas être modifié.
-> Mieux vaut prévenir que guérir !"
+**Never forget:**
+> "A deployed smart contract cannot be modified.
+> Prevention is better than cure!"
 
-**Analyse TOUJOURS ton code avant de déployer !** 🚀
+**ALWAYS analyze your code before deploying!** 🚀
