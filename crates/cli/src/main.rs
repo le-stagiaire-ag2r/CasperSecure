@@ -110,6 +110,27 @@ fn output_text(report: &DetectionReport) {
     // Summary
     println!("{}", "Summary:".bold());
     println!("  Total vulnerabilities: {}", report.summary.total_vulns.to_string().bold());
+
+    // Security Score & Grade (V4.0) 🎯
+    let grade_colored = match report.summary.security_grade.as_str() {
+        "A+" | "A" => report.summary.security_grade.as_str().green().bold(),
+        "B" => report.summary.security_grade.as_str().yellow().bold(),
+        "C" => report.summary.security_grade.as_str().yellow(),
+        "D" => report.summary.security_grade.as_str().red(),
+        "F" => report.summary.security_grade.as_str().red().bold(),
+        _ => report.summary.security_grade.as_str().white(),
+    };
+
+    let score_colored = match report.summary.security_score {
+        90..=100 => report.summary.security_score.to_string().green().bold(),
+        70..=89 => report.summary.security_score.to_string().yellow(),
+        _ => report.summary.security_score.to_string().red(),
+    };
+
+    println!("  {} {}/100", "Security Score:".bold(), score_colored);
+    println!("  {} {}", "Security Grade:".bold(), grade_colored);
+    println!();
+
     if report.summary.critical > 0 {
         println!("  Critical: {}", report.summary.critical.to_string().red().bold());
     }
@@ -209,33 +230,59 @@ fn filter_report(mut report: DetectionReport, min_severity: Severity) -> Detecti
 }
 
 fn list_detectors() {
-    println!("{}", "CasperSecure Vulnerability Detectors (V0.3.0)".bold().cyan());
+    println!("{}", "═══════════════════════════════════════════════════════════".bright_black());
+    println!("{}", "  CasperSecure V4.0 - Vulnerability Detectors 🔥".bold().cyan());
+    println!("{}", "  The Ultimate Security Analyzer - 20 Detectors".bright_black());
+    println!("{}", "═══════════════════════════════════════════════════════════".bright_black());
     println!();
 
     let detectors = vec![
-        ("Reentrancy", "High", "Detects reentrancy attack vulnerabilities via external calls"),
-        ("Integer Overflow", "Medium", "Finds unchecked arithmetic operations that may overflow"),
-        ("Access Control", "High", "Identifies missing access control checks in entry points"),
-        ("Unchecked Calls", "Medium", "Detects external calls without error handling"),
-        ("Storage Collision", "Low", "Finds potential storage key collision risks"),
-        // NEW in V0.3.0
-        ("DOS Risk", "Medium", "🆕 Detects unbounded loops with external calls (denial of service)"),
-        ("Gas Limit Risk", "Low", "🆕 Identifies loops with excessive arithmetic operations"),
-        ("Uninitialized Storage", "Medium", "🆕 Finds storage reads before initialization"),
-        ("Multiple External Calls", "Low", "🆕 Detects functions with many external dependencies"),
-        ("Complex Entry Point", "Info", "🆕 Identifies entry points with high cyclomatic complexity"),
-        ("Write-Only Storage", "Info", "🆕 Finds storage that is written but never read"),
+        // ===== ORIGINAL V0.2.0 (5) =====
+        ("1.  Reentrancy", "HIGH", "Detects reentrancy attack vulnerabilities via external calls", "V0.2.0"),
+        ("2.  Integer Overflow", "MED", "Finds unchecked arithmetic operations that may overflow", "V0.2.0"),
+        ("3.  Access Control", "HIGH", "Identifies missing access control checks in entry points", "V0.2.0"),
+        ("4.  Unchecked Calls", "MED", "Detects external calls without error handling", "V0.2.0"),
+        ("5.  Storage Collision", "LOW", "Finds potential storage key collision risks", "V0.2.0"),
+        // ===== V0.3.0 (6) =====
+        ("6.  DOS Risk", "MED", "Detects unbounded loops with external calls", "V0.3.0"),
+        ("7.  Gas Limit Risk", "LOW", "Identifies loops with excessive arithmetic operations", "V0.3.0"),
+        ("8.  Uninitialized Storage", "MED", "Finds storage that is read before initialization", "V0.3.0"),
+        ("9.  Multiple External Calls", "LOW", "Detects functions with many external dependencies", "V0.3.0"),
+        ("10. Complex Entry Point", "INFO", "Identifies entry points with high cyclomatic complexity", "V0.3.0"),
+        ("11. Write-Only Storage", "INFO", "Finds storage that is written but never read", "V0.3.0"),
+        // ===== V4.0 NEW (9) 🚀 =====
+        ("12. Timestamp Manipulation", "MED", "Detects use of manipulable block timestamps", "🆕 V4.0"),
+        ("13. Unchecked Return Values", "MED", "Finds external calls with unchecked return values", "🆕 V4.0"),
+        ("14. Dangerous Delegatecall", "HIGH", "Detects risky delegatecall usage", "🆕 V4.0"),
+        ("15. Redundant Code", "INFO", "Identifies duplicate or redundant code patterns", "🆕 V4.0"),
+        ("16. Dead Code", "INFO", "Finds unused private functions", "🆕 V4.0"),
+        ("17. Magic Numbers", "INFO", "Detects hardcoded numbers without constants", "🆕 V4.0"),
+        ("18. Unsafe Type Casting", "LOW", "Identifies potentially unsafe type conversions", "🆕 V4.0"),
+        ("19. Inefficient Storage", "MED", "Detects storage writes inside loops", "🆕 V4.0"),
+        ("20. Missing Events", "LOW", "Finds state changes without event emissions", "🆕 V4.0"),
     ];
 
     let total = detectors.len();
 
-    for (name, severity, desc) in detectors {
-        println!("• {} [{}]", name.bold(), severity.yellow());
-        println!("  {}", desc);
+    for (name, severity, desc, version) in &detectors {
+        let severity_colored = match *severity {
+            "HIGH" => severity.red().bold(),
+            "MED" => severity.yellow(),
+            "LOW" => severity.cyan(),
+            "INFO" => severity.bright_black(),
+            _ => severity.white(),
+        };
+
+        println!("  {} [{}] {}", name.bold(), severity_colored, version.bright_black());
+        println!("    {}", desc.bright_black());
         println!();
     }
 
-    println!("{}", format!("Total detectors: {}", total).bold());
+    println!("{}", "═══════════════════════════════════════════════════════════".bright_black());
+    println!("{}", format!("  Total Detectors: {}", total).bold().green());
+    println!("{}", "  Detection Coverage: DOS, Reentrancy, Overflow, Storage,".bright_black());
+    println!("{}", "  Access Control, Code Quality, Gas Optimization, Events".bright_black());
+    println!("{}", "═══════════════════════════════════════════════════════════".bright_black());
 }
 
 fn print_version() {
