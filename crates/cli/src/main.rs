@@ -209,7 +209,7 @@ fn filter_report(mut report: DetectionReport, min_severity: Severity) -> Detecti
 }
 
 fn list_detectors() {
-    println!("{}", "CasperSecure Vulnerability Detectors".bold().cyan());
+    println!("{}", "CasperSecure Vulnerability Detectors (V0.3.0)".bold().cyan());
     println!();
 
     let detectors = vec![
@@ -218,13 +218,24 @@ fn list_detectors() {
         ("Access Control", "High", "Identifies missing access control checks in entry points"),
         ("Unchecked Calls", "Medium", "Detects external calls without error handling"),
         ("Storage Collision", "Low", "Finds potential storage key collision risks"),
+        // NEW in V0.3.0
+        ("DOS Risk", "Medium", "🆕 Detects unbounded loops with external calls (denial of service)"),
+        ("Gas Limit Risk", "Low", "🆕 Identifies loops with excessive arithmetic operations"),
+        ("Uninitialized Storage", "Medium", "🆕 Finds storage reads before initialization"),
+        ("Multiple External Calls", "Low", "🆕 Detects functions with many external dependencies"),
+        ("Complex Entry Point", "Info", "🆕 Identifies entry points with high cyclomatic complexity"),
+        ("Write-Only Storage", "Info", "🆕 Finds storage that is written but never read"),
     ];
+
+    let total = detectors.len();
 
     for (name, severity, desc) in detectors {
         println!("• {} [{}]", name.bold(), severity.yellow());
         println!("  {}", desc);
         println!();
     }
+
+    println!("{}", format!("Total detectors: {}", total).bold());
 }
 
 fn print_version() {

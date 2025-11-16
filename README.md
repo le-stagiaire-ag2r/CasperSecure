@@ -4,8 +4,8 @@
 
 CasperSecure is an automated security auditing tool that detects vulnerabilities in Casper Network smart contracts written in Rust. It uses static analysis, pattern recognition, and control flow analysis to identify common security issues before deployment.
 
-![Version](https://img.shields.io/badge/Version-0.2.0-blue)
-![Status](https://img.shields.io/badge/Status-Working-brightgreen)
+![Version](https://img.shields.io/badge/Version-0.3.0-blue)
+![Status](https://img.shields.io/badge/Status-Enhanced-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 **Hackathon:** Casper Hackathon 2026 on DoraHacks
@@ -32,15 +32,26 @@ cargo run -- analyze examples/vulnerable_contract.rs
 
 ## 🚀 Features
 
-### Current (V0.2.0 - Fully Functional)
+### Current (V0.3.0 - Enhanced)
 
 ✅ **Advanced Rust AST Parser** - Parses function bodies, external calls, arithmetic operations
 ✅ **Static Analysis Engine** - Real control flow and data flow analysis
-✅ **4 Working Vulnerability Detectors:**
+✅ **11 Working Vulnerability Detectors:**
+
+**Original (V0.2.0):**
 - 🔴 **Reentrancy Attacks** - Detects dangerous external calls before state updates
 - 🟡 **Integer Overflow/Underflow** - Finds unchecked arithmetic operations
 - 🔴 **Missing Access Control** - Identifies unprotected privileged functions
 - 🟡 **Unchecked External Calls** - Detects calls without error handling
+- 🔵 **Storage Collision** - Finds potential key collision risks
+
+**NEW in V0.3.0:**
+- 🟡 **DOS Risk** - Detects unbounded loops with external calls
+- 🔵 **Gas Limit Risk** - Identifies loops with excessive operations
+- 🟡 **Uninitialized Storage** - Finds storage reads before initialization
+- 🔵 **Multiple External Calls** - Detects functions with many dependencies
+- ℹ️ **Complex Entry Point** - Identifies high cyclomatic complexity
+- ℹ️ **Write-Only Storage** - Finds unused storage writes
 
 ✅ **Beautiful CLI** - Colored output with detailed recommendations
 ✅ **JSON Export** - Machine-readable reports for CI/CD integration
@@ -54,13 +65,14 @@ cargo run -- analyze examples/vulnerable_contract.rs
 - ✅ 8 Medium severity issues found
 - ✅ **100% detection rate** on known vulnerability patterns
 
-### Planned (V0.3.0+)
+### Planned (V0.4.0+)
 
-- 🔜 More detectors (DOS, timestamp dependence, etc.)
-- 🔜 Storage collision detector activation
+- 🔜 More detectors (timestamp dependence, delegation patterns, etc.)
+- 🔜 Machine learning-based pattern detection
 - 🔜 CI/CD GitHub Action integration
-- 🔜 Unit tests and integration tests
+- 🔜 Comprehensive unit & integration tests
 - 🔜 Fix suggestions & auto-remediation
+- 🔜 Web UI for interactive reports
 
 ---
 
@@ -202,13 +214,21 @@ CasperSecure/
 
 ## 🔍 Vulnerability Detectors
 
-| Detector | Severity | Status | Description |
-|----------|----------|--------|-------------|
-| Reentrancy | High | ✅ Active | Detects external calls before state updates |
-| Integer Overflow | Medium | ✅ Active | Finds unchecked arithmetic (add, sub, mul, div) |
-| Access Control | High | ✅ Active | Identifies missing permission checks in entry points |
-| Unchecked Calls | Medium | ✅ Active | Detects external calls without error handling |
-| Storage Collision | Low | 🔜 Planned | Will find risky storage key patterns |
+| # | Detector | Severity | Status | Description |
+|---|----------|----------|--------|-------------|
+| 1 | Reentrancy | High | ✅ V0.2.0 | Detects external calls before state updates |
+| 2 | Integer Overflow | Medium | ✅ V0.2.0 | Finds unchecked arithmetic (add, sub, mul, div) |
+| 3 | Access Control | High | ✅ V0.2.0 | Identifies missing permission checks in entry points |
+| 4 | Unchecked Calls | Medium | ✅ V0.2.0 | Detects external calls without error handling |
+| 5 | Storage Collision | Low | ✅ V0.2.0 | Finds risky storage key patterns |
+| 6 | DOS Risk | Medium | 🆕 V0.3.0 | Detects unbounded loops with external calls |
+| 7 | Gas Limit Risk | Low | 🆕 V0.3.0 | Identifies loops with excessive arithmetic operations |
+| 8 | Uninitialized Storage | Medium | 🆕 V0.3.0 | Finds storage reads before initialization |
+| 9 | Multiple External Calls | Low | 🆕 V0.3.0 | Detects functions with many external dependencies |
+| 10 | Complex Entry Point | Info | 🆕 V0.3.0 | Identifies high cyclomatic complexity |
+| 11 | Write-Only Storage | Info | 🆕 V0.3.0 | Finds storage written but never read |
+
+**Total: 11 active detectors** (4 in V0.2.0 → 11 in V0.3.0)
 
 ---
 
