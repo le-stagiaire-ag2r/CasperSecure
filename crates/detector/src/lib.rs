@@ -83,12 +83,17 @@ impl VulnerabilityDetector {
     pub fn detect(&self, contract: &ParsedContract, analysis: &AnalysisResult) -> Result<DetectionReport> {
         let mut vulnerabilities = Vec::new();
 
-        // Run all 5 core detectors
+        // Run all 8 detectors (4 original + 3 new + 1 storage collision)
         vulnerabilities.extend(self.detect_reentrancy(contract, analysis));
         vulnerabilities.extend(self.detect_integer_overflow(contract, analysis));
         vulnerabilities.extend(self.detect_access_control(contract, analysis));
         vulnerabilities.extend(self.detect_unchecked_calls(contract, analysis));
         vulnerabilities.extend(self.detect_storage_collision(contract, analysis));
+
+        // NEW: V0.3.0 detectors
+        vulnerabilities.extend(self.detect_dos_risk(contract, analysis));
+        vulnerabilities.extend(self.detect_uninitialized_storage(contract, analysis));
+        vulnerabilities.extend(self.detect_dangerous_patterns(contract, analysis));
 
         let summary = Self::create_summary(&vulnerabilities);
 
@@ -267,6 +272,213 @@ impl VulnerabilityDetector {
             }
 
             seen_keys.insert(storage_item.name.clone());
+        }
+
+        vulns
+    }
+
+    /// Detector 6: DOS (Denial of Service) Risk - NEW V0.3.0
+    fn detect_dos_risk(&self, contract: &ParsedContract, analysis: &AnalysisResult) -> Vec<Vulnerability> {
+        let mut vulns = Vec::new();
+
+        // Check for loops with external calls (unbounded loops = DOS risk)
+        for func in &contract.functions {
+            let has_loop = analysis.control_flow.functions_with_loops.contains(&func.name);
+            let has_external_call = analysis.control_flow.external_calls.iter()
+                .any(|call| call.caller == func.name);
+
+            if has_loop && has_external_call {
+                vulns.push(Vulnerability {
+                    vuln_type: "DOS Risk".to_string(),
+                    severity: Severity::Medium,
+                    description: format!(
+                        "Function '{}' contains a loop with external calls. \
+                         If the loop is unbounded or the external call fails repeatedly, \
+                         this can cause a denial of service.",
+                        func.name
+                    ),
+                    location: Location {
+                        file: contract.path.clone(),
+                        function: func.name.clone(),
+                        line: None,
+                    },
+                    recommendation: "Limit the number of loop iterations, use batch processing, \
+                                     or avoid external calls in loops. Consider using a pull-based \
+                                     pattern instead of push-based.".to_string(),
+                });
+            }
+
+            // Also check for loops with many arithmetic operations (gas limit issue)
+            if has_loop {
+                let arith_count = analysis.data_flow.arithmetic_ops.iter()
+                    .filter(|op| op.function == func.name)
+                    .count();
+
+                if arith_count > 5 {
+                    vulns.push(Vulnerability {
+                        vuln_type: "Gas Limit Risk".to_string(),
+                        severity: Severity::Low,
+                        description: format!(
+                            "Function '{}' has a loop with {} arithmetic operations. \
+                             This may consume excessive gas and fail for large inputs.",
+                            func.name, arith_count
+                        ),
+                        location: Location {
+                            file: contract.path.clone(),
+                            function: func.name.clone(),
+                            line: None,
+                        },
+                        recommendation: "Optimize the loop, reduce arithmetic operations, \
+                                         or add gas limits and checkpoints.".to_string(),
+                    });
+                }
+            }
+        }
+
+        vulns
+    }
+
+    /// Detector 7: Uninitialized Storage - NEW V0.3.0
+    fn detect_uninitialized_storage(&self, contract: &ParsedContract, analysis: &AnalysisResult) -> Vec<Vulnerability> {
+        let mut vulns = Vec::new();
+
+        // Track which storage keys are written vs read in each function
+        let mut storage_writes: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        let mut storage_reads: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+
+        for op in &analysis.data_flow.storage_ops {
+            match op.operation {
+                casper_analyzer::StorageOpType::Write => {
+                    storage_writes.entry(op.function.clone())
+                        .or_insert_with(Vec::new)
+                        .push(op.key.clone());
+                }
+                casper_analyzer::StorageOpType::Read => {
+                    storage_reads.entry(op.function.clone())
+                        .or_insert_with(Vec::new)
+                        .push(op.key.clone());
+                }
+            }
+        }
+
+        // Check for reads before writes in same function
+        for (func_name, reads) in &storage_reads {
+            let writes = storage_writes.get(func_name).cloned().unwrap_or_default();
+
+            for read_key in reads {
+                if !writes.contains(read_key) && read_key != "storage_read" {
+                    vulns.push(Vulnerability {
+                        vuln_type: "Uninitialized Storage".to_string(),
+                        severity: Severity::Medium,
+                        description: format!(
+                            "Function '{}' reads from storage key '{}' without initializing it first. \
+                             This may return default/zero values unexpectedly.",
+                            func_name, read_key
+                        ),
+                        location: Location {
+                            file: contract.path.clone(),
+                            function: func_name.clone(),
+                            line: None,
+                        },
+                        recommendation: "Always initialize storage before reading, or handle the case \
+                                         where the storage value might be uninitialized.".to_string(),
+                    });
+                }
+            }
+        }
+
+        vulns
+    }
+
+    /// Detector 8: Dangerous Patterns - NEW V0.3.0
+    fn detect_dangerous_patterns(&self, contract: &ParsedContract, analysis: &AnalysisResult) -> Vec<Vulnerability> {
+        let mut vulns = Vec::new();
+
+        // Pattern 1: Multiple external calls in single function (increased attack surface)
+        for func in &contract.functions {
+            let external_call_count = analysis.control_flow.external_calls.iter()
+                .filter(|call| call.caller == func.name)
+                .count();
+
+            if external_call_count > 2 {
+                vulns.push(Vulnerability {
+                    vuln_type: "Multiple External Calls".to_string(),
+                    severity: Severity::Low,
+                    description: format!(
+                        "Function '{}' makes {} external calls. Multiple external calls \
+                         increase the attack surface and complexity.",
+                        func.name, external_call_count
+                    ),
+                    location: Location {
+                        file: contract.path.clone(),
+                        function: func.name.clone(),
+                        line: None,
+                    },
+                    recommendation: "Consider splitting the function into smaller functions, \
+                                     or reducing the number of external dependencies.".to_string(),
+                });
+            }
+        }
+
+        // Pattern 2: Complex entry points (high cyclomatic complexity)
+        for ep_analysis in &analysis.entry_points {
+            if ep_analysis.complexity_score > 10 {
+                vulns.push(Vulnerability {
+                    vuln_type: "Complex Entry Point".to_string(),
+                    severity: Severity::Info,
+                    description: format!(
+                        "Entry point '{}' has high complexity (score: {}). \
+                         Complex entry points are harder to audit and more prone to bugs.",
+                        ep_analysis.name, ep_analysis.complexity_score
+                    ),
+                    location: Location {
+                        file: contract.path.clone(),
+                        function: ep_analysis.name.clone(),
+                        line: None,
+                    },
+                    recommendation: "Refactor the entry point into smaller, simpler functions. \
+                                     Use helper functions to reduce complexity.".to_string(),
+                });
+            }
+        }
+
+        // Pattern 3: Storage write without read (potential waste or logic error)
+        let mut func_storage_reads: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut func_storage_writes: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+        for op in &analysis.data_flow.storage_ops {
+            match op.operation {
+                casper_analyzer::StorageOpType::Read => {
+                    func_storage_reads.insert(format!("{}:{}", op.function, op.key));
+                }
+                casper_analyzer::StorageOpType::Write => {
+                    func_storage_writes.insert(format!("{}:{}", op.function, op.key));
+                }
+            }
+        }
+
+        for write_key in &func_storage_writes {
+            if !func_storage_reads.contains(write_key) {
+                let parts: Vec<&str> = write_key.split(':').collect();
+                if parts.len() == 2 && parts[1] != "storage_write" {
+                    vulns.push(Vulnerability {
+                        vuln_type: "Write-Only Storage".to_string(),
+                        severity: Severity::Info,
+                        description: format!(
+                            "Function '{}' writes to storage '{}' but never reads it. \
+                             This might indicate unused storage or a logic error.",
+                            parts[0], parts[1]
+                        ),
+                        location: Location {
+                            file: contract.path.clone(),
+                            function: parts[0].to_string(),
+                            line: None,
+                        },
+                        recommendation: "Verify that this storage write is intentional. \
+                                         Remove if unused, or add read logic if needed.".to_string(),
+                    });
+                }
+            }
         }
 
         vulns
