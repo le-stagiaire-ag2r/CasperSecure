@@ -1,0 +1,23 @@
+[package]
+name = "casper-secure"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "casper-secure"
+path = "src/main.rs"
+
+[dependencies]
+casper-parser = { path = "../parser" }
+casper-analyzer = { path = "../analyzer" }
+casper-detector = { path = "../detector" }
+clap.workspace = true
+colored.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
