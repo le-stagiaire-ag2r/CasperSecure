@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use syn::{File, Item, ItemFn, ItemMod, Expr, Stmt};
+use syn::{File, Item, ItemFn, ItemMod, Expr, Stmt, ExprBinary, BinOp};
 
 /// Represents a parsed Casper smart contract
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -168,13 +168,131 @@ impl CasperParser {
 
         let is_public = matches!(func.vis, syn::Visibility::Public(_));
 
+        // Parse function body for statements
+        let body = self.parse_block(&func.block);
+
         Function {
             name,
             parameters,
             return_type: None,
             is_public,
-            body: vec![Statement::Other], // Simplified for now
+            body,
         }
+    }
+
+    fn parse_block(&self, block: &syn::Block) -> Vec<Statement> {
+        let mut statements = Vec::new();
+
+        for stmt in &block.stmts {
+            statements.extend(self.parse_stmt(stmt));
+        }
+
+        statements
+    }
+
+    fn parse_stmt(&self, stmt: &Stmt) -> Vec<Statement> {
+        match stmt {
+            Stmt::Expr(expr, _) => self.parse_expr(expr),
+            Stmt::Local(local) => {
+                if let Some(init) = &local.init {
+                    self.parse_expr(&init.expr)
+                } else {
+                    vec![]
+                }
+            }
+            _ => vec![],
+        }
+    }
+
+    fn parse_expr(&self, expr: &Expr) -> Vec<Statement> {
+        let mut statements = Vec::new();
+
+        match expr {
+            // Detect external calls: runtime::call_contract(...), runtime::transfer_to_account(...)
+            Expr::Call(call) => {
+                let call_str = quote::quote!(#call).to_string();
+
+                // Check if it's a runtime call (external call)
+                if call_str.contains("runtime :: call_contract")
+                    || call_str.contains("call_contract") {
+                    statements.push(Statement::ExternalCall {
+                        target: "external_contract".to_string(),
+                        method: "call_contract".to_string(),
+                    });
+                } else if call_str.contains("transfer_to_account")
+                    || call_str.contains("transfer") {
+                    statements.push(Statement::ExternalCall {
+                        target: "account".to_string(),
+                        method: "transfer".to_string(),
+                    });
+                }
+
+                // Also check for storage access
+                if call_str.contains("get_key") || call_str.contains("get_balance")
+                    || call_str.contains("read") {
+                    statements.push(Statement::StorageAccess {
+                        key: "storage_read".to_string(),
+                        is_write: false,
+                    });
+                } else if call_str.contains("set_key") || call_str.contains("set_balance")
+                    || call_str.contains("write") || call_str.contains("put_key") {
+                    statements.push(Statement::StorageAccess {
+                        key: "storage_write".to_string(),
+                        is_write: true,
+                    });
+                }
+
+                // Recursively analyze call arguments
+                if let Expr::Call(c) = expr {
+                    for arg in &c.args {
+                        statements.extend(self.parse_expr(arg));
+                    }
+                }
+            }
+
+            // Detect arithmetic operations
+            Expr::Binary(ExprBinary { left, op, right, .. }) => {
+                let op_str = match op {
+                    BinOp::Add(_) => "add",
+                    BinOp::Sub(_) => "sub",
+                    BinOp::Mul(_) => "mul",
+                    BinOp::Div(_) => "div",
+                    _ => "",
+                };
+
+                if !op_str.is_empty() {
+                    statements.push(Statement::ArithmeticOp {
+                        operation: op_str.to_string(),
+                    });
+                }
+
+                // Recursively analyze operands
+                statements.extend(self.parse_expr(left));
+                statements.extend(self.parse_expr(right));
+            }
+
+            // Detect loops
+            Expr::ForLoop(_) | Expr::While(_) | Expr::Loop(_) => {
+                statements.push(Statement::Loop);
+            }
+
+            // Detect conditionals
+            Expr::If(_) | Expr::Match(_) => {
+                statements.push(Statement::Conditional);
+            }
+
+            // Detect blocks and recursively analyze
+            Expr::Block(block) => {
+                statements.extend(self.parse_block(&block.block));
+            }
+
+            // Other expressions - try to find nested expressions
+            _ => {
+                statements.push(Statement::Other);
+            }
+        }
+
+        statements
     }
 
     fn parse_module(&self, _module: &ItemMod) -> Module {

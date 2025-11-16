@@ -121,31 +121,81 @@ impl CasperAnalyzer {
     }
 
     fn analyze_control_flow(&self, contract: &ParsedContract) -> ControlFlowAnalysis {
-        // Simplified control flow analysis
+        let mut functions_with_loops = Vec::new();
+        let mut complex_branches = Vec::new();
+        let mut external_calls = Vec::new();
+        let recursive_functions = Vec::new();
+
+        // Analyze each function
+        for func in &contract.functions {
+            let mut has_loop = false;
+            let mut has_branch = false;
+            let mut func_external_calls = Vec::new();
+
+            for stmt in &func.body {
+                match stmt {
+                    casper_parser::Statement::Loop => {
+                        has_loop = true;
+                    }
+                    casper_parser::Statement::Conditional => {
+                        has_branch = true;
+                    }
+                    casper_parser::Statement::ExternalCall { target, method } => {
+                        func_external_calls.push(ExternalCall {
+                            caller: func.name.clone(),
+                            callee: format!("{}::{}", target, method),
+                            is_checked: false, // Assume unchecked by default
+                        });
+                    }
+                    _ => {}
+                }
+            }
+
+            if has_loop {
+                functions_with_loops.push(func.name.clone());
+            }
+            if has_branch {
+                complex_branches.push(func.name.clone());
+            }
+
+            external_calls.extend(func_external_calls);
+        }
+
         ControlFlowAnalysis {
-            functions_with_loops: Vec::new(),
-            complex_branches: Vec::new(),
-            external_calls: Vec::new(),
-            recursive_functions: Vec::new(),
+            functions_with_loops,
+            complex_branches,
+            external_calls,
+            recursive_functions,
         }
     }
 
     fn analyze_data_flow(&self, contract: &ParsedContract) -> DataFlowAnalysis {
         let mut storage_ops = Vec::new();
+        let mut arithmetic_ops = Vec::new();
 
-        // Analyze storage operations in functions
+        // Analyze storage operations and arithmetic in functions
         for func in &contract.functions {
             for stmt in &func.body {
-                if let casper_parser::Statement::StorageAccess { key, is_write } = stmt {
-                    storage_ops.push(StorageOperation {
-                        function: func.name.clone(),
-                        key: key.clone(),
-                        operation: if *is_write {
-                            StorageOpType::Write
-                        } else {
-                            StorageOpType::Read
-                        },
-                    });
+                match stmt {
+                    casper_parser::Statement::StorageAccess { key, is_write } => {
+                        storage_ops.push(StorageOperation {
+                            function: func.name.clone(),
+                            key: key.clone(),
+                            operation: if *is_write {
+                                StorageOpType::Write
+                            } else {
+                                StorageOpType::Read
+                            },
+                        });
+                    }
+                    casper_parser::Statement::ArithmeticOp { operation } => {
+                        arithmetic_ops.push(ArithmeticOp {
+                            function: func.name.clone(),
+                            operation: operation.clone(),
+                            is_checked: false, // Assume unchecked by default
+                        });
+                    }
+                    _ => {}
                 }
             }
         }
@@ -153,7 +203,7 @@ impl CasperAnalyzer {
         DataFlowAnalysis {
             storage_ops,
             tainted_vars: Vec::new(),
-            arithmetic_ops: Vec::new(),
+            arithmetic_ops,
         }
     }
 
