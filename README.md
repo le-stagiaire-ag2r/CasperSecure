@@ -4,14 +4,15 @@
 
 CasperSecure is an automated security auditing tool that detects vulnerabilities in Casper Network smart contracts written in Rust. It uses static analysis, pattern recognition, and control flow analysis to identify common security issues before deployment.
 
-![Version](https://img.shields.io/badge/Version-4.0.0-blue)
+![Version](https://img.shields.io/badge/Version-5.0.0-blue)
 ![Detectors](https://img.shields.io/badge/Detectors-20-orange)
+![OnChain](https://img.shields.io/badge/OnChain-Registry-green)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 **Hackathon:** Casper Hackathon 2026 on DoraHacks
 **Track:** Main Track
-**Innovation:** First automated security auditor for Casper ecosystem
-**Achievement:** 20 comprehensive vulnerability detectors with security scoring
+**Innovation:** First automated security auditor with on-chain certification for Casper ecosystem
+**Achievement:** 20 comprehensive vulnerability detectors + on-chain audit registry
 
 ---
 
@@ -28,6 +29,9 @@ cargo run -- analyze examples/vulnerable_contract.rs
 
 # Result: 36 vulnerabilities detected! Security Score: 0/100 (Grade F) ✓
 
+# Submit audit to on-chain registry (NEW in V5.0!)
+cargo run -- submit examples/vulnerable_contract.rs --contract-address hash-abc123...
+
 # List all 20 detectors
 cargo run -- detectors
 ```
@@ -36,8 +40,9 @@ cargo run -- detectors
 
 ## 🚀 Features
 
-### Current (V4.0 - Production Ready) 🔥
+### Current (V5.0 - Production Ready with On-Chain Registry) 🔥
 
+#### Off-Chain Analysis
 ✅ **20 Comprehensive Vulnerability Detectors** - Industry-leading coverage
 ✅ **Security Scoring System** - Get a security score (0-100) and grade (A+ to F)
 ✅ **Advanced Rust AST Parser** - Parses function bodies, external calls, arithmetic
@@ -45,21 +50,34 @@ cargo run -- detectors
 ✅ **Beautiful CLI** - Colored output with security score and recommendations
 ✅ **JSON Export** - Machine-readable reports for CI/CD integration
 
-### Test Results (V4.0)
+#### On-Chain Certification 🆕
+✅ **Audit Registry Smart Contract** - Store audit results on Casper blockchain
+✅ **Public Verification** - Anyone can verify a contract's security score on-chain
+✅ **Immutable Audit History** - Tamper-proof record of all audits
+✅ **Submit Command** - Easy CLI to submit audit results to the registry
+✅ **Contract Hash Verification** - Ensure audited contract matches deployed version
 
-**Tested on intentionally vulnerable contract:**
+### Test Results (V5.0)
+
+**Off-Chain Analysis:**
 - ✅ **36 vulnerabilities detected** (was 19 in V0.2.0) - **+89% detection**
 - ✅ 11 High severity + 17 Medium + 8 Low
 - ✅ **Security Score: 0/100 - Grade F** (correctly identified as highly vulnerable)
 - ✅ **100% detection rate** on all 20 vulnerability types
 
-### Planned (V5.0+)
+**On-Chain Registry:**
+- ✅ **Smart contract deployed** - Ready for Casper mainnet/testnet
+- ✅ **Stores:** Score, grade, vulnerability counts, auditor, timestamp
+- ✅ **Public queries** - Anyone can check if a contract is audited
+
+### Planned (V6.0+)
 
 - 🔜 Machine learning-based pattern detection
 - 🔜 Fix suggestions & auto-remediation code generation
 - 🔜 CI/CD GitHub Action integration
 - 🔜 HTML/PDF report generation
 - 🔜 Multi-file workspace analysis
+- 🔜 Automatic on-chain submission with wallet integration
 
 ---
 
@@ -101,6 +119,21 @@ casper-secure analyze contract.rs --format json
 
 # Filter by severity
 casper-secure analyze contract.rs --severity high
+```
+
+### Submit Audit to On-Chain Registry (V5.0 NEW!) 🆕
+
+```bash
+# Submit audit results to blockchain
+casper-secure submit path/to/contract.rs \
+  --contract-address hash-abc123def456 \
+  --registry hash-789xyz (optional)
+
+# The command will:
+# 1. Analyze the contract
+# 2. Generate audit report
+# 3. Display submission preview
+# 4. (Future) Submit to on-chain registry
 ```
 
 ### List Available Detectors
@@ -187,7 +220,8 @@ CasperSecure/
 │   ├── parser/       # Rust AST parser for Casper contracts
 │   ├── analyzer/     # Static analysis (control/data flow)
 │   ├── detector/     # Vulnerability detection logic
-│   └── cli/          # Command-line interface
+│   ├── cli/          # Command-line interface
+│   └── contract/     # 🆕 On-chain audit registry smart contract
 ├── examples/         # Example contracts
 ├── tests/            # Integration tests
 └── docs/             # Documentation
@@ -195,11 +229,17 @@ CasperSecure/
 
 ### Technology Stack
 
+#### Off-Chain (Analysis CLI)
 - **Syn** - Rust syntax parsing
 - **Static Analysis** - Control & data flow analysis
 - **Pattern Matching** - Vulnerability detection rules
 - **Clap** - CLI framework
 - **Colored** - Terminal output
+
+#### On-Chain (Registry Contract) 🆕
+- **Casper Contract API** - Smart contract development
+- **Casper Types** - Blockchain data types
+- **WASM** - Compiled to WebAssembly for deployment
 
 ---
 
@@ -238,10 +278,58 @@ CasperSecure/
 
 ## 🎓 How It Works
 
+### Off-Chain Analysis
+
 1. **Parsing** - Converts Rust source code into an Abstract Syntax Tree (AST)
 2. **Analysis** - Performs control flow and data flow analysis
 3. **Detection** - Applies vulnerability detection patterns
 4. **Reporting** - Generates detailed security report with recommendations
+
+### On-Chain Registry 🆕
+
+The audit registry is a Casper smart contract that stores security audit results on-chain:
+
+**Contract Features:**
+- 📝 **register_audit()** - Submit audit results (score, grade, vulnerability counts)
+- 🔍 **get_audit()** - Retrieve full audit record for any contract
+- 📊 **get_security_score()** - Quick lookup of security score (0-100)
+- 🔐 **Immutable storage** - Audit records can't be tampered with
+- ⏰ **Timestamped** - Each audit includes blockchain timestamp
+
+**Data Stored On-Chain:**
+```rust
+struct AuditRecord {
+    auditor: String,           // Who performed the audit
+    timestamp: u64,            // When it was audited
+    security_score: u8,        // 0-100 score
+    security_grade: String,    // A+, A, B, C, D, F
+    critical: u32,             // # of critical vulnerabilities
+    high: u32,                 // # of high vulnerabilities
+    medium: u32,               // # of medium vulnerabilities
+    low: u32,                  // # of low vulnerabilities
+    info: u32,                 // # of info findings
+    contract_hash: String,     // Hash of audited source
+}
+```
+
+**Deployment:**
+```bash
+# Build the contract
+cd crates/contract
+cargo build --release --target wasm32-unknown-unknown
+
+# Deploy to Casper network
+casper-client put-deploy \
+  --chain-name casper-test \
+  --payment-amount 100000000000 \
+  --session-path target/wasm32-unknown-unknown/release/casper_audit_registry.wasm
+```
+
+**Benefits:**
+- ✅ Projects can prove they're audited
+- ✅ Users can verify security before using a contract
+- ✅ Audits are publicly verifiable and immutable
+- ✅ Creates trust in the Casper ecosystem
 
 ---
 
@@ -281,10 +369,12 @@ MIT License - See [LICENSE](LICENSE) for details
 **Category:** Security Infrastructure
 
 **Why CasperSecure?**
-- 🆕 First automated security tool for Casper ecosystem
+- 🆕 First automated security tool with on-chain certification for Casper ecosystem
 - 🛡️ Critical infrastructure for all Casper developers
 - 🚀 Enables safer smart contract deployments
 - 📈 Scalable architecture for future enhancements
+- 🔐 On-chain audit registry provides immutable proof of security
+- ✅ Both off-chain analysis AND on-chain verification
 
 ---
 

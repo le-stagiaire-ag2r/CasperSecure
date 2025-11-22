@@ -21,3 +21,7 @@ anyhow.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+casper-client = "2.0"
+casper-types = "4.0"
+hex = "0.4"
+md5 = "0.7"
