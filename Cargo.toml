@@ -6,10 +6,17 @@ members = [
     "crates/cli",
     "crates/contract",
 ]
+# Default members excludes contract (requires wasm32 target)
+default-members = [
+    "crates/parser",
+    "crates/analyzer",
+    "crates/detector",
+    "crates/cli",
+]
 resolver = "2"
 
 [workspace.package]
-version = "5.0.0"
+version = "6.0.0"
 edition = "2021"
 authors = ["CasperSecure Team"]
 license = "MIT"

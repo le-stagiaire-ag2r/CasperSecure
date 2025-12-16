@@ -1,10 +1,16 @@
-//! CasperSecure CLI
+//! CasperSecure CLI V6.0
 //!
 //! Command-line interface for analyzing Casper smart contracts
+//!
+//! V6.0 Enhancements:
+//! - 30 vulnerability detectors
+//! - Casper-specific security checks
+//! - Odra 2.4.0 framework support
+//! - Improved detection accuracy
 
 use anyhow::Result;
 use casper_analyzer::CasperAnalyzer;
-use casper_detector::{DetectionReport, Severity, VulnerabilityDetector};
+use casper_detector::{DetectionReport, Severity, VulnerabilityDetector, VulnCategory};
 use casper_parser::CasperParser;
 use clap::{Parser, Subcommand};
 use colored::*;
@@ -34,6 +40,10 @@ enum Commands {
         /// Minimum severity to report
         #[arg(short, long, default_value = "low")]
         severity: String,
+
+        /// V6.0: Filter by category
+        #[arg(short, long)]
+        category: Option<String>,
     },
 
     /// Submit audit results to on-chain registry
@@ -66,8 +76,8 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Analyze { file, format, severity } => {
-            analyze_contract(file, format, severity)?;
+        Commands::Analyze { file, format, severity, category } => {
+            analyze_contract(file, format, severity, category)?;
         }
         Commands::Submit { file, contract_address, registry, node_url } => {
             submit_audit_onchain(file, contract_address, registry, node_url)?;
@@ -83,8 +93,9 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn analyze_contract(file: PathBuf, format: String, min_severity: String) -> Result<()> {
-    println!("{}", "CasperSecure - Smart Contract Analyzer".bold().cyan());
+fn analyze_contract(file: PathBuf, format: String, min_severity: String, category: Option<String>) -> Result<()> {
+    println!("{}", "CasperSecure V6.0 - Smart Contract Analyzer".bold().cyan());
+    println!("{}", "30 Detectors | Casper-Specific | Odra 2.4.0 Support".bright_black());
     println!();
 
     // Parse the contract
@@ -93,6 +104,17 @@ fn analyze_contract(file: PathBuf, format: String, min_severity: String) -> Resu
     let contract = parser.parse_file(&file)?;
     println!("  {} {} entry points found", "✓".green(), contract.entry_points.len());
     println!("  {} {} functions found", "✓".green(), contract.functions.len());
+
+    // V6.0: Show contract metadata
+    if contract.metadata.is_odra_contract {
+        println!("  {} Odra framework detected", "●".cyan());
+    }
+    if contract.metadata.uses_cep18 {
+        println!("  {} CEP-18 token contract detected", "●".cyan());
+    }
+    if contract.metadata.uses_cep78 {
+        println!("  {} CEP-78 NFT contract detected", "●".cyan());
+    }
     println!();
 
     // Analyze the contract
@@ -101,10 +123,21 @@ fn analyze_contract(file: PathBuf, format: String, min_severity: String) -> Resu
     let analysis = analyzer.analyze(&contract)?;
     println!("  {} Control flow analysis complete", "✓".green());
     println!("  {} Data flow analysis complete", "✓".green());
+    println!("  {} Storage analysis complete", "✓".green());
+    println!("  {} Security patterns detected", "✓".green());
+
+    // V6.0: Show Casper-specific analysis
+    if analysis.casper_analysis.uses_urefs {
+        if analysis.casper_analysis.has_uref_access_checks {
+            println!("  {} URef access rights verified", "✓".green());
+        } else {
+            println!("  {} URef operations without access checks", "⚠".yellow());
+        }
+    }
     println!();
 
     // Detect vulnerabilities
-    println!("{}", "Running vulnerability detectors...".bold());
+    println!("{}", "Running 30 vulnerability detectors...".bold());
     let detector = VulnerabilityDetector::new();
     let report = detector.detect(&contract, &analysis)?;
     println!("  {} Detection complete", "✓".green());
@@ -112,7 +145,12 @@ fn analyze_contract(file: PathBuf, format: String, min_severity: String) -> Resu
 
     // Filter by severity
     let min_sev = parse_severity(&min_severity);
-    let filtered_report = filter_report(report, min_sev);
+    let mut filtered_report = filter_report(report, min_sev);
+
+    // V6.0: Filter by category if specified
+    if let Some(cat) = category {
+        filtered_report = filter_by_category(filtered_report, &cat);
+    }
 
     // Output results
     match format.as_str() {
@@ -129,11 +167,27 @@ fn output_text(report: &DetectionReport) {
     println!("{}", "═".repeat(60).cyan());
     println!();
 
+    // V6.0: Contract Info
+    println!("{}", "Contract Info:".bold());
+    println!("  Entry Points: {}", report.contract_info.entry_point_count);
+    println!("  Functions: {}", report.contract_info.function_count);
+    if report.contract_info.is_odra {
+        println!("  Framework: {}", "Odra".cyan());
+    }
+    if report.contract_info.uses_cep18 {
+        println!("  Standard: {}", "CEP-18 (Fungible Token)".cyan());
+    }
+    if report.contract_info.uses_cep78 {
+        println!("  Standard: {}", "CEP-78 (NFT)".cyan());
+    }
+    println!();
+
     // Summary
     println!("{}", "Summary:".bold());
     println!("  Total vulnerabilities: {}", report.summary.total_vulns.to_string().bold());
+    println!("  Detectors run: {}", report.summary.detectors_run);
 
-    // Security Score & Grade (V4.0) 🎯
+    // Security Score & Grade
     let grade_colored = match report.summary.security_grade.as_str() {
         "A+" | "A" => report.summary.security_grade.as_str().green().bold(),
         "B" => report.summary.security_grade.as_str().yellow().bold(),
@@ -153,6 +207,7 @@ fn output_text(report: &DetectionReport) {
     println!("  {} {}", "Security Grade:".bold(), grade_colored);
     println!();
 
+    // Severity breakdown
     if report.summary.critical > 0 {
         println!("  Critical: {}", report.summary.critical.to_string().red().bold());
     }
@@ -165,6 +220,20 @@ fn output_text(report: &DetectionReport) {
     if report.summary.low > 0 {
         println!("  Low:      {}", report.summary.low.to_string().bright_blue());
     }
+    if report.summary.info > 0 {
+        println!("  Info:     {}", report.summary.info.to_string().white());
+    }
+    println!();
+
+    // V6.0: Grade explanation
+    match report.summary.security_grade.as_str() {
+        "A+" | "A" => println!("  {}", "Contract is well-secured.".green()),
+        "B" => println!("  {}", "Contract has minor issues to address.".yellow()),
+        "C" => println!("  {}", "Contract needs security improvements.".yellow()),
+        "D" => println!("  {}", "Contract has significant security issues.".red()),
+        "F" => println!("  {}", "CONTRACT IS DANGEROUS - DO NOT DEPLOY!".red().bold()),
+        _ => {}
+    }
     println!();
 
     // Vulnerabilities
@@ -174,14 +243,16 @@ fn output_text(report: &DetectionReport) {
 
         for (i, vuln) in report.vulnerabilities.iter().enumerate() {
             println!();
-            println!("{}. {} [{}]",
+            println!("{}. {} [{}] [{}]",
                      (i + 1).to_string().bold(),
                      vuln.vuln_type.bold(),
-                     severity_colored(&vuln.severity));
+                     severity_colored(&vuln.severity),
+                     vuln.detector_id.bright_black());
 
-            println!("   Function: {}", vuln.location.function.italic());
+            println!("   {} {}", "Category:".bright_black(), category_name(&vuln.category));
+            println!("   {} {}", "Function:".bright_black(), vuln.location.function.italic());
             println!("   {}", vuln.description);
-            println!("   {} {}", "Recommendation:".bold().green(), vuln.recommendation);
+            println!("   {} {}", "Fix:".bold().green(), vuln.recommendation);
         }
 
         println!();
@@ -192,6 +263,20 @@ fn output_text(report: &DetectionReport) {
 
     println!();
     println!("{}", "Analysis complete.".italic());
+}
+
+fn category_name(category: &VulnCategory) -> ColoredString {
+    match category {
+        VulnCategory::Security => "Security".red(),
+        VulnCategory::AccessControl => "Access Control".bright_red(),
+        VulnCategory::Arithmetic => "Arithmetic".yellow(),
+        VulnCategory::Reentrancy => "Reentrancy".red().bold(),
+        VulnCategory::Storage => "Storage".cyan(),
+        VulnCategory::Gas => "Gas".bright_blue(),
+        VulnCategory::CodeQuality => "Code Quality".bright_black(),
+        VulnCategory::CasperSpecific => "Casper-Specific".magenta(),
+        VulnCategory::OdraSpecific => "Odra".cyan().bold(),
+    }
 }
 
 fn output_json(report: &DetectionReport) -> Result<()> {
@@ -251,60 +336,117 @@ fn filter_report(mut report: DetectionReport, min_severity: Severity) -> Detecti
     report
 }
 
+fn filter_by_category(mut report: DetectionReport, category: &str) -> DetectionReport {
+    let target_category = match category.to_lowercase().as_str() {
+        "security" => Some(VulnCategory::Security),
+        "access" | "access_control" | "accesscontrol" => Some(VulnCategory::AccessControl),
+        "arithmetic" | "overflow" => Some(VulnCategory::Arithmetic),
+        "reentrancy" => Some(VulnCategory::Reentrancy),
+        "storage" => Some(VulnCategory::Storage),
+        "gas" => Some(VulnCategory::Gas),
+        "quality" | "code_quality" | "codequality" => Some(VulnCategory::CodeQuality),
+        "casper" | "casper_specific" | "casperspecific" => Some(VulnCategory::CasperSpecific),
+        "odra" | "odra_specific" | "odraspecific" => Some(VulnCategory::OdraSpecific),
+        _ => None,
+    };
+
+    if let Some(cat) = target_category {
+        report.vulnerabilities.retain(|v| v.category == cat);
+        report.summary.total_vulns = report.vulnerabilities.len();
+    }
+
+    report
+}
+
 fn list_detectors() {
-    println!("{}", "═══════════════════════════════════════════════════════════".bright_black());
-    println!("{}", "  CasperSecure V4.0 - Vulnerability Detectors 🔥".bold().cyan());
-    println!("{}", "  The Ultimate Security Analyzer - 20 Detectors".bright_black());
-    println!("{}", "═══════════════════════════════════════════════════════════".bright_black());
+    println!("{}", "═══════════════════════════════════════════════════════════════════".bright_black());
+    println!("{}", "  CasperSecure V6.0 - Vulnerability Detectors".bold().cyan());
+    println!("{}", "  30 Detectors | Casper-Specific | Odra 2.4.0 Support".bright_black());
+    println!("{}", "═══════════════════════════════════════════════════════════════════".bright_black());
     println!();
 
     let detectors = vec![
         // ===== ORIGINAL V0.2.0 (5) =====
-        ("1.  Reentrancy", "HIGH", "Detects reentrancy attack vulnerabilities via external calls", "V0.2.0"),
-        ("2.  Integer Overflow", "MED", "Finds unchecked arithmetic operations that may overflow", "V0.2.0"),
-        ("3.  Access Control", "HIGH", "Identifies missing access control checks in entry points", "V0.2.0"),
-        ("4.  Unchecked Calls", "MED", "Detects external calls without error handling", "V0.2.0"),
-        ("5.  Storage Collision", "LOW", "Finds potential storage key collision risks", "V0.2.0"),
+        ("CSPR-001", "Reentrancy", "HIGH", "Reentrancy attack via external calls before state update", "V0.2.0"),
+        ("CSPR-002", "Integer Overflow", "MED", "Unchecked arithmetic operations", "V0.2.0"),
+        ("CSPR-003", "Access Control", "HIGH", "Missing access control in entry points", "V0.2.0"),
+        ("CSPR-004", "Unchecked Calls", "MED", "External calls without error handling", "V0.2.0"),
+        ("CSPR-005", "Storage Collision", "LOW", "Potential storage key collisions", "V0.2.0"),
         // ===== V0.3.0 (6) =====
-        ("6.  DOS Risk", "MED", "Detects unbounded loops with external calls", "V0.3.0"),
-        ("7.  Gas Limit Risk", "LOW", "Identifies loops with excessive arithmetic operations", "V0.3.0"),
-        ("8.  Uninitialized Storage", "MED", "Finds storage that is read before initialization", "V0.3.0"),
-        ("9.  Multiple External Calls", "LOW", "Detects functions with many external dependencies", "V0.3.0"),
-        ("10. Complex Entry Point", "INFO", "Identifies entry points with high cyclomatic complexity", "V0.3.0"),
-        ("11. Write-Only Storage", "INFO", "Finds storage that is written but never read", "V0.3.0"),
-        // ===== V4.0 NEW (9) 🚀 =====
-        ("12. Timestamp Manipulation", "MED", "Detects use of manipulable block timestamps", "🆕 V4.0"),
-        ("13. Unchecked Return Values", "MED", "Finds external calls with unchecked return values", "🆕 V4.0"),
-        ("14. Dangerous Delegatecall", "HIGH", "Detects risky delegatecall usage", "🆕 V4.0"),
-        ("15. Redundant Code", "INFO", "Identifies duplicate or redundant code patterns", "🆕 V4.0"),
-        ("16. Dead Code", "INFO", "Finds unused private functions", "🆕 V4.0"),
-        ("17. Magic Numbers", "INFO", "Detects hardcoded numbers without constants", "🆕 V4.0"),
-        ("18. Unsafe Type Casting", "LOW", "Identifies potentially unsafe type conversions", "🆕 V4.0"),
-        ("19. Inefficient Storage", "MED", "Detects storage writes inside loops", "🆕 V4.0"),
-        ("20. Missing Events", "LOW", "Finds state changes without event emissions", "🆕 V4.0"),
+        ("CSPR-006", "DOS Risk", "MED", "Unbounded loops with external calls", "V0.3.0"),
+        ("CSPR-007", "Gas Limit Risk", "LOW", "Loops with excessive operations", "V0.3.0"),
+        ("CSPR-008", "Uninitialized Storage", "MED", "Storage read before initialization", "V0.3.0"),
+        ("CSPR-009", "Multiple External Calls", "LOW", "Functions with many external dependencies", "V0.3.0"),
+        ("CSPR-010", "Complex Entry Point", "INFO", "High cyclomatic complexity", "V0.3.0"),
+        ("CSPR-011", "Write-Only Storage", "INFO", "Storage written but never read", "V0.3.0"),
+        // ===== V4.0 (9) =====
+        ("CSPR-012", "Timestamp Manipulation", "MED", "Use of manipulable block timestamps", "V4.0"),
+        ("CSPR-013", "Unchecked Return Values", "MED", "External calls with unchecked returns", "V4.0"),
+        ("CSPR-014", "Dangerous Delegatecall", "HIGH", "Risky delegatecall usage", "V4.0"),
+        ("CSPR-015", "Redundant Code", "INFO", "Duplicate or redundant patterns", "V4.0"),
+        ("CSPR-016", "Dead Code", "INFO", "Unused private functions", "V4.0"),
+        ("CSPR-017", "Magic Numbers", "INFO", "Hardcoded numbers without constants", "V4.0"),
+        ("CSPR-018", "Unsafe Type Casting", "LOW", "Potentially unsafe type conversions", "V4.0"),
+        ("CSPR-019", "Inefficient Storage", "MED", "Storage writes inside loops", "V4.0"),
+        ("CSPR-020", "Missing Events", "LOW", "State changes without event emissions", "V4.0"),
+        // ===== V6.0 NEW (10) - Casper-Specific =====
+        ("CSPR-021", "URef Access Rights", "HIGH", "URef operations without access rights check (July 2024 $6.7M breach)", "V6.0"),
+        ("CSPR-022", "Unprotected Init", "CRIT", "Init function callable multiple times (node doesn't enforce)", "V6.0"),
+        ("CSPR-023", "Purse in Dictionary", "CRIT", "Storing purses in dictionaries (causes ForgedReference error)", "V6.0"),
+        ("CSPR-024", "Call Stack Depth", "MED", "Cross-contract call depth approaching limit (max 10)", "V6.0"),
+        ("CSPR-025", "Dictionary Key Length", "MED", "Dictionary keys exceeding 128 byte limit", "V6.0"),
+        ("CSPR-026", "Unsafe Unwrap", "MED", "Using .unwrap()/.expect() which can panic", "V6.0"),
+        ("CSPR-027", "Missing Caller Validation", "CRIT", "Ownership changes without caller verification", "V6.0"),
+        ("CSPR-028", "Unbounded Loop", "MED", "while/loop without clear bounds", "V6.0"),
+        ("CSPR-029", "CEP Compliance", "MED", "Missing required CEP-18/CEP-78 methods", "V6.0"),
+        ("CSPR-030", "Odra Issues", "MED", "Odra module without proper init", "V6.0"),
     ];
 
     let total = detectors.len();
 
-    for (name, severity, desc, version) in &detectors {
+    // Group by version
+    println!("{}", "  Original Detectors (V0.2.0 - V4.0):".bold());
+    println!();
+
+    for (id, name, severity, desc, version) in detectors.iter().take(20) {
         let severity_colored = match *severity {
-            "HIGH" => severity.red().bold(),
+            "CRIT" => severity.red().bold(),
+            "HIGH" => severity.red(),
             "MED" => severity.yellow(),
             "LOW" => severity.cyan(),
             "INFO" => severity.bright_black(),
             _ => severity.white(),
         };
 
-        println!("  {} [{}] {}", name.bold(), severity_colored, version.bright_black());
-        println!("    {}", desc.bright_black());
-        println!();
+        println!("  {} {} [{}] {}", id.bright_black(), name.bold(), severity_colored, version.bright_black());
+        println!("      {}", desc.bright_black());
     }
 
-    println!("{}", "═══════════════════════════════════════════════════════════".bright_black());
-    println!("{}", format!("  Total Detectors: {}", total).bold().green());
-    println!("{}", "  Detection Coverage: DOS, Reentrancy, Overflow, Storage,".bright_black());
-    println!("{}", "  Access Control, Code Quality, Gas Optimization, Events".bright_black());
-    println!("{}", "═══════════════════════════════════════════════════════════".bright_black());
+    println!();
+    println!("{}", "  NEW V6.0 Casper-Specific Detectors:".bold().magenta());
+    println!();
+
+    for (id, name, severity, desc, version) in detectors.iter().skip(20) {
+        let severity_colored = match *severity {
+            "CRIT" => severity.red().bold(),
+            "HIGH" => severity.red(),
+            "MED" => severity.yellow(),
+            "LOW" => severity.cyan(),
+            "INFO" => severity.bright_black(),
+            _ => severity.white(),
+        };
+
+        println!("  {} {} [{}] {}", id.magenta(), name.bold(), severity_colored, version.magenta());
+        println!("      {}", desc.bright_black());
+    }
+
+    println!();
+    println!("{}", "═══════════════════════════════════════════════════════════════════".bright_black());
+    println!("  {} {}", "Total Detectors:".bold(), total.to_string().green().bold());
+    println!("  {} {}", "New in V6.0:".bold(), "10 Casper-specific detectors".magenta());
+    println!("  {} {}", "Categories:".bold(), "Security, Access Control, Arithmetic, Reentrancy,");
+    println!("             Storage, Gas, Code Quality, Casper-Specific, Odra");
+    println!("{}", "═══════════════════════════════════════════════════════════════════".bright_black());
 }
 
 fn submit_audit_onchain(
@@ -313,7 +455,7 @@ fn submit_audit_onchain(
     registry: Option<String>,
     node_url: String,
 ) -> Result<()> {
-    println!("{}", "CasperSecure - Submit Audit to On-Chain Registry".bold().cyan());
+    println!("{}", "CasperSecure V6.0 - Submit Audit to On-Chain Registry".bold().cyan());
     println!();
 
     // First, analyze the contract to get the audit results
@@ -327,7 +469,7 @@ fn submit_audit_onchain(
     let detector = VulnerabilityDetector::new();
     let report = detector.detect(&contract, &analysis)?;
 
-    println!("  {} Analysis complete", "✓".green());
+    println!("  {} Analysis complete (30 detectors)", "✓".green());
     println!();
 
     // Display audit summary
@@ -335,6 +477,7 @@ fn submit_audit_onchain(
     println!("  Contract: {}", contract_address.bright_white());
     println!("  Security Score: {}/100", report.summary.security_score.to_string().bold());
     println!("  Security Grade: {}", report.summary.security_grade.bold());
+    println!("  Detectors Run: {}", report.summary.detectors_run);
     println!();
 
     println!("  Vulnerabilities:");
@@ -355,7 +498,7 @@ fn submit_audit_onchain(
     }
     println!();
 
-    // Generate contract hash (SHA256 of file contents)
+    // Generate contract hash (MD5 of file contents)
     let contract_source = std::fs::read_to_string(&file)?;
     let contract_hash = format!("{:x}", md5::compute(contract_source.as_bytes()));
 
@@ -369,11 +512,8 @@ fn submit_audit_onchain(
     println!("  Contract Hash: {}", contract_hash.bright_black());
     println!();
 
-    // For now, we'll just display what would be submitted
-    // In a production version, this would actually call the contract
-    println!("{}", "ℹ  Submission Preview:".bold().yellow());
-    println!();
-    println!("  The following data would be submitted to the on-chain registry:");
+    // Display submission preview
+    println!("{}", "Submission Preview:".bold().yellow());
     println!();
     println!("  {}", "Contract Details:".bold());
     println!("    - Address: {}", contract_address);
@@ -391,20 +531,11 @@ fn submit_audit_onchain(
 
     println!("{}", "═".repeat(60).bright_black());
     println!();
-    println!("{}", "📝 Note:".bold().yellow());
-    println!("  To actually submit this audit on-chain, you need to:");
+    println!("{}", "Note:".bold().yellow());
+    println!("  To submit this audit on-chain:");
     println!("  1. Deploy the audit registry contract to Casper network");
     println!("  2. Configure your Casper account keys");
     println!("  3. Provide the deployed registry contract hash");
-    println!();
-    println!("  The registry contract is located at:");
-    println!("    {}", "crates/contract/".bright_white());
-    println!();
-    println!("  To deploy:");
-    println!("    {}", "casper-client put-deploy \\".bright_black());
-    println!("    {}", "  --chain-name casper-test \\".bright_black());
-    println!("    {}", "  --payment-amount 100000000000 \\".bright_black());
-    println!("    {}", "  --session-path target/wasm32-unknown-unknown/release/casper_audit_registry.wasm".bright_black());
     println!();
     println!("{}", "✓ Audit preview complete".green().bold());
 
@@ -413,5 +544,18 @@ fn submit_audit_onchain(
 
 fn print_version() {
     println!("{} {}", "CasperSecure".bold().cyan(), env!("CARGO_PKG_VERSION"));
-    println!("Advanced Security Analyzer for Casper Smart Contracts");
+    println!("{}", "Advanced Security Analyzer for Casper Smart Contracts".bright_black());
+    println!();
+    println!("  {} 30 vulnerability detectors", "●".green());
+    println!("  {} Casper-specific security checks", "●".green());
+    println!("  {} Odra 2.4.0 framework support", "●".green());
+    println!("  {} On-chain audit registry", "●".green());
+    println!();
+    println!("{}", "New in V6.0:".bold());
+    println!("  - URef access rights detection (July 2024 breach)", );
+    println!("  - Unprotected init detection");
+    println!("  - Purse in dictionary detection");
+    println!("  - Call stack depth analysis");
+    println!("  - CEP-18/CEP-78 compliance checking");
+    println!("  - Odra module analysis");
 }
